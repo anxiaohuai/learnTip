@@ -255,11 +255,103 @@ snort拥有三大基本功能：嗅探器、数据包记录器和入侵检测。
 
 ## TP-LINK
 
-完成项目的jenkins配合docker容器化编译的工作，实现代码速度上报以及精细化度量的Devops任务上报
+#### 1、jenkins  & docker
+
+完成项目的jenkins配合docker容器化编译的工作，实现代码速度上报以及精细化度量的Devops任务上报。
+
+##### 需求背景
+
+当时所有的编译环境均是在本机上，每一种编译环境都需要占据一台机器，不仅浪费了资源，而且不易管理，没有容错，一旦某台机器发生瘫痪，会导致编译环境恢复难度增加。于是将所有的编译环境集成到docker中，使用一个个docker镜像来保存每一个编译环境，然后使用一台服务器来与运行docker，将所有的编译环境对应的镜像与运行成容器，然后在jenkins中将docker配置进去，修改jenkins file将编译环境集成到docker中，这样所有的编译环境都集中到一台机器上，而且只要机器上有docker就可以快速恢复。
+
+##### 难点
+
+1. docker镜像的制作
+   1. 之前没有使用过docker，所以使用起来有一些困难，包括制作docker镜像，使用docker容器等等。后面熟悉docker基本操作之后，就很快了。
+      1. 将编译环境配置成tar包，然后将tar包打包成docker镜像，使用export和import命令
+      2. 拉取一个新的docker的编译镜像，然后在这个镜像的容器中配置编译环境，最后将该容器到宝成一个新的编译环境镜像，然后push到制品库中。之后只需要拉去该镜像就可以使用该编译环境了。
+2. jenkins的文件配置
+   1. docker环境和jenkins的融合
+   2. 多线程执行dockers容器，因为有时候一副代码需要在几种环境上跑，而这些环境都部署在一台机器的docker容器中，会导致编译速度降低。
+
+##### 流程
+
+首先通过`Docker`容器保存好完整的开发环境，在`Jenkins`任务中调用容器进行工程的编译。
+
+1. 如何在`Jenkins`中操作`Docker`？
+
+   - 当前通过容器方式启动`Jenkins`，为了在容器内部操作`Docker`，需要在启动命令时配置如下参数，将宿主机`docker`挂载到容器中
+
+   ```shell
+   $ docker run -it -v "/var/run/docker.sock:/var/run/docker.sock" -v "/usr/bin/docker:/usr/bin/docker" --privileged zjykzj/ubuntu:18.04 bash
+   ```
+
+   - `docker-compose.yml`配置`Jenkins`如下:主要是将映射的端口号和映射的路径
+
+     ```yaml
+     version: "3.7"
+     services: 
+         jenkins:
+             labels:
+                 AUTHOR: "zhujian <zjzstu@github.com>"
+             container_name: jenkins
+             user: jenkins
+             image: jenkins/jenkins:latest
+             volumes: 
+                 - "jenkins_home:/var/jenkins_home"
+                 - "/var/run/docker.sock:/var/run/docker.sock"
+                 - "/usr/bin/docker:/usr/bin/docker"
+             ports: 
+                 - "7070:8080"
+                 - "50000:50000"
+             restart: always
+             tty: true
+             stdin_open: true
+             privileged: true
+     volumes: 
+         jenkins_home:
+             external: true
+     ```
+
+     
+
+2. 如何在任务中使用`Docker`容器？
+
+   - 首先需要创建`pipeline`任务，然后在`Jenkinsfile`文件中配置`docker`容器。
+
+   ```groovy
+   pipeline {
+       agent {
+           docker { image 'node:7-alpine' }
+       }
+       stages {
+           stage('Test') {
+               steps {
+                   sh 'node --version'
+               }
+           }
+       }
+   }
+   ```
+
+   
+
+3. 如何在任务中使用自建`Docker`容器？
+
+
+
+
+
+#### 2、过滤指定字段
+
+使用C++编写相关工具类对某段特性数据进行识别，然后过滤，是一个类似于**tcpdump**的工具，可以过滤指定的字段
+
+
+
+
 
 使用wireshark以及内部抓包工具对涉及到的相关通信协议字段进行抓取，解读，分析
 
-使用C++编写相关工具类对某段特性数据进行识别，然后过滤
+
 
 
 
